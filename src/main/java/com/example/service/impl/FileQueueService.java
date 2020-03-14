@@ -6,11 +6,6 @@ import com.example.model.PushMessageResult;
 import com.example.service.QueueService;
 
 public class FileQueueService implements QueueService {
-    //
-    // Task 3: Implement me if you have time.
-    //
-
-
 
     @Override
     public CreateQueueResult createNewQueue() {
