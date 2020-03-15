@@ -5,9 +5,11 @@ import com.amazonaws.services.sqs.model.ReceiveMessageResult;
 import com.amazonaws.services.sqs.model.SendMessageResult;
 import com.example.model.CreateQueueResult;
 import com.example.model.Message;
+import com.example.model.PullMessageResult;
 import com.example.model.PushMessageResult;
 import com.example.service.QueueService;
 
+import java.time.Instant;
 import java.util.UUID;
 
 public class SqsQueueService implements QueueService {
@@ -37,10 +39,14 @@ public class SqsQueueService implements QueueService {
     }
 
     @Override
-    public Message pull(String queueUrl) {
+    public PullMessageResult pull(String queueUrl) {
         ReceiveMessageResult result = sqsClient.receiveMessage(queueUrl);
+        Instant receiptDate = Instant.now();
         return result.getMessages().stream()
-                .map(message -> new Message(message.getBody(), message.getMessageId(), message.getReceiptHandle()))
+                .map(message -> {
+                    Message messageModel = new Message(message.getBody(), message.getMessageId());
+                    return new PullMessageResult(messageModel, message.getReceiptHandle(), receiptDate);
+                })
                 .findFirst()
                 .orElse(null);
     }

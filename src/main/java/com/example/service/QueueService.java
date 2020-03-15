@@ -1,7 +1,7 @@
 package com.example.service;
 
 import com.example.model.CreateQueueResult;
-import com.example.model.Message;
+import com.example.model.PullMessageResult;
 import com.example.model.PushMessageResult;
 
 public interface QueueService {
@@ -33,12 +33,12 @@ public interface QueueService {
      * Retrieves a single message from the specified queue.
      * After retrieving the message becomes invisible for a certain time
      * and another consumers can not receive it. If the consumer that received the message
-     * does not delete it, after timeout expiration message automatically restores in queue.
+     * does not delete it, message automatically restores in queue after timeout expiration.
      *
      * @param queueUrl The URL of the queue.
-     * @return Message with generated receiptHandle that can be used for deleting.
+     * @return PullMessageResult with single message and generated receiptHandle that can be used for deleting.
      */
-    Message pull(String queueUrl);
+    PullMessageResult pull(String queueUrl);
 
     /**
      * Deletes the specified message from the specified queue.

@@ -1,7 +1,7 @@
 package com.example;
 
 import com.example.model.CreateQueueResult;
-import com.example.model.Message;
+import com.example.model.PullMessageResult;
 import com.example.model.PushMessageResult;
 import com.example.service.QueueService;
 import com.example.service.impl.InMemoryQueueService;
@@ -25,10 +25,10 @@ public class InMemoryQueueTest {
 
         String messageBody = "Test message";
         PushMessageResult pushResult = queueService.push(queueUrl, messageBody);
-        Message message = queueService.pull(queueUrl);
-        assertNotNull(message);
-        assertEquals(pushResult.getMessageId(), message.getMessageId());
-        assertEquals(message.getBody(), messageBody);
+        PullMessageResult pullResult = queueService.pull(queueUrl);
+        assertNotNull(pullResult);
+        assertEquals(pushResult.getMessageId(), pullResult.getMessage().getMessageId());
+        assertEquals(pullResult.getMessage().getBody(), messageBody);
     }
 
     @Test
@@ -38,11 +38,11 @@ public class InMemoryQueueTest {
         String queueUrl = createQueueResult.getQueueUrl();
 
         queueService.push(queueUrl, "Test");
-        Message message = queueService.pull(queueUrl);
-        queueService.delete(queueUrl, message.getReceiptHandle());
+        PullMessageResult pullResult = queueService.pull(queueUrl);
+        queueService.delete(queueUrl, pullResult.getReceiptHandle());
         Thread.sleep(20);
-        Message afterDeletingMessage = queueService.pull(queueUrl);
-        assertNull(afterDeletingMessage);
+        PullMessageResult afterDeletingPullResult = queueService.pull(queueUrl);
+        assertNull(afterDeletingPullResult);
     }
 
     @Test
@@ -55,8 +55,8 @@ public class InMemoryQueueTest {
         queueService.push(queueUrl, messageBody);
         queueService.pull(queueUrl);
         Thread.sleep(100);
-        Message message = queueService.pull(queueUrl);
-        assertEquals(message.getBody(), messageBody);
+        PullMessageResult pullResult = queueService.pull(queueUrl);
+        assertEquals(pullResult.getMessage().getBody(), messageBody);
     }
 
     @Test
@@ -66,9 +66,9 @@ public class InMemoryQueueTest {
         String queueUrl = createQueueResult.getQueueUrl();
 
         queueService.push(queueUrl, "Test");
-        Message message = queueService.pull(queueUrl);
+        PullMessageResult pullResult = queueService.pull(queueUrl);
         Thread.sleep(100);
-        queueService.delete(queueUrl, message.getReceiptHandle());
+        queueService.delete(queueUrl, pullResult.getReceiptHandle());
         assertNotNull(queueService.pull(queueUrl));
     }
 }

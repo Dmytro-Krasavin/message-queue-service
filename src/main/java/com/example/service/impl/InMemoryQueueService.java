@@ -2,6 +2,7 @@ package com.example.service.impl;
 
 import com.example.model.CreateQueueResult;
 import com.example.model.Message;
+import com.example.model.PullMessageResult;
 import com.example.model.PushMessageResult;
 import com.example.service.QueueService;
 import com.google.common.cache.Cache;
@@ -9,6 +10,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
@@ -19,16 +21,14 @@ public class InMemoryQueueService implements QueueService {
     private final Lock lock = new ReentrantLock();
 
     private final Duration visibilityTimeout;
-    private final ConcurrentMap<String, BlockingDeque<Message>> messagesByQueueUrl;
-    private final ConcurrentMap<String, Cache<String, Message>> hiddenMessagesByQueueUrl;
+    private final ConcurrentMap<String, BlockingDeque<Message>> messagesByQueueUrl = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Cache<String, PullMessageResult>> hiddenMessagesByQueueUrl = new ConcurrentHashMap<>();
 
     public InMemoryQueueService(Duration visibilityTimeout) {
         if (visibilityTimeout.isNegative() || visibilityTimeout.isZero()) {
             throw new IllegalArgumentException("Invalid visibility timeout");
         }
         this.visibilityTimeout = visibilityTimeout;
-        this.messagesByQueueUrl = new ConcurrentHashMap<>();
-        this.hiddenMessagesByQueueUrl = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -72,21 +72,21 @@ public class InMemoryQueueService implements QueueService {
     }
 
     @Override
-    public Message pull(String queueUrl) {
+    public PullMessageResult pull(String queueUrl) {
         lock.lock();
         try {
             BlockingDeque<Message> messages = messagesByQueueUrl.get(queueUrl);
-            Cache<String, Message> hiddenMessagesCache = hiddenMessagesByQueueUrl.get(queueUrl);
+            Cache<String, PullMessageResult> hiddenMessagesCache = hiddenMessagesByQueueUrl.get(queueUrl);
 
             if (messages != null && hiddenMessagesCache != null) {
                 Message message = messages.pollFirst();
                 if (message != null) {
                     String receiptHandle = UUID.randomUUID().toString();
-                    message.setReceiptHandle(receiptHandle);
+                    PullMessageResult pullResult = new PullMessageResult(message, receiptHandle, Instant.now());
 
-                    hiddenMessagesCache.put(receiptHandle, message);
+                    hiddenMessagesCache.put(receiptHandle, pullResult);
                     hiddenMessagesCache.cleanUp();
-                    return message;
+                    return pullResult;
                 }
             }
             return null;
@@ -99,7 +99,7 @@ public class InMemoryQueueService implements QueueService {
     public void delete(String queueUrl, String receiptHandle) {
         lock.lock();
         try {
-            Cache<String, Message> hiddenMessagesCache = hiddenMessagesByQueueUrl.get(queueUrl);
+            Cache<String, PullMessageResult> hiddenMessagesCache = hiddenMessagesByQueueUrl.get(queueUrl);
             if (hiddenMessagesCache != null) {
                 hiddenMessagesCache.invalidate(receiptHandle);
             }
@@ -112,12 +112,13 @@ public class InMemoryQueueService implements QueueService {
      * Builds cache for hidden messages with given visibility timeout
      * and listener that restore message after expiration.
      */
-    private Cache<String, Message> buildMessageCache(Duration visibilityTimeout, String queueUrl) {
+    private Cache<String, PullMessageResult> buildMessageCache(Duration visibilityTimeout, String queueUrl) {
         return CacheBuilder.newBuilder()
                 .expireAfterWrite(visibilityTimeout.toNanos(), TimeUnit.NANOSECONDS)
                 .removalListener(notification -> {
                     if (notification.getCause().equals(RemovalCause.EXPIRED)) {
-                        restoreMessage((Message) notification.getValue(), queueUrl);
+                        PullMessageResult pullResult = (PullMessageResult) notification.getValue();
+                        restoreMessage(pullResult.getMessage(), queueUrl);
                     }
                 }).build();
     }
