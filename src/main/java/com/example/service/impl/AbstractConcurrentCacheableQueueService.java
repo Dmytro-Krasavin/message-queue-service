@@ -12,16 +12,16 @@ import com.google.common.cache.RemovalCause;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
-import java.util.concurrent.BlockingDeque;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 public abstract class AbstractConcurrentCacheableQueueService implements QueueService {
 
+    protected final Duration visibilityTimeout;
+    protected final ConcurrentMap<String, Cache<String, PullMessageResult>> hiddenMessagesByQueueUrl = new ConcurrentHashMap<>();
+
     private final Lock lock = new ReentrantLock();
-    private final Duration visibilityTimeout;
 
     protected AbstractConcurrentCacheableQueueService(Duration visibilityTimeout) {
         if (visibilityTimeout.isNegative() || visibilityTimeout.isZero()) {
@@ -30,15 +30,9 @@ public abstract class AbstractConcurrentCacheableQueueService implements QueueSe
         this.visibilityTimeout = visibilityTimeout;
     }
 
-    protected abstract void writeQueue(String queueUrl, BlockingDeque<Message> messageQueue);
-
-    protected abstract void writeCache(String queueUrl, Cache<String, PullMessageResult> messageCache);
-
     protected abstract BlockingDeque<Message> readQueue(String queueUrl);
 
-    protected abstract Cache<String, PullMessageResult> readCache(String queueUrl);
-
-    protected abstract void removeCache(String queueUrl);
+    protected abstract void writeQueue(String queueUrl, BlockingDeque<Message> messageQueue);
 
     protected abstract void removeQueue(String queueUrl);
 
@@ -48,7 +42,7 @@ public abstract class AbstractConcurrentCacheableQueueService implements QueueSe
         try {
             String queueUrl = UUID.randomUUID().toString();
             writeQueue(queueUrl, new LinkedBlockingDeque<>());
-            writeCache(queueUrl, buildMessageCache(queueUrl));
+            hiddenMessagesByQueueUrl.put(queueUrl, buildMessageCache(queueUrl));
             return new CreateQueueResult(queueUrl);
         } finally {
             lock.unlock();
@@ -60,7 +54,7 @@ public abstract class AbstractConcurrentCacheableQueueService implements QueueSe
         lock.lock();
         try {
             removeQueue(queueUrl);
-            removeCache(queueUrl);
+            hiddenMessagesByQueueUrl.remove(queueUrl);
         } finally {
             lock.unlock();
         }
@@ -74,6 +68,7 @@ public abstract class AbstractConcurrentCacheableQueueService implements QueueSe
             if (messages != null) {
                 String messageId = UUID.randomUUID().toString();
                 messages.addLast(new Message(messageBody, messageId));
+                writeQueue(queueUrl, messages);
                 return new PushMessageResult(messageId);
             }
             return null;
@@ -87,10 +82,11 @@ public abstract class AbstractConcurrentCacheableQueueService implements QueueSe
         lock.lock();
         try {
             BlockingDeque<Message> messages = readQueue(queueUrl);
-            Cache<String, PullMessageResult> hiddenMessagesCache = readCache(queueUrl);
+            Cache<String, PullMessageResult> hiddenMessagesCache = hiddenMessagesByQueueUrl.get(queueUrl);
 
             if (messages != null && hiddenMessagesCache != null) {
                 Message message = messages.pollFirst();
+                writeQueue(queueUrl, messages);
                 if (message != null) {
                     String receiptHandle = UUID.randomUUID().toString();
                     PullMessageResult pullResult = new PullMessageResult(message, receiptHandle, Instant.now());
@@ -98,8 +94,6 @@ public abstract class AbstractConcurrentCacheableQueueService implements QueueSe
                     hiddenMessagesCache.put(receiptHandle, pullResult);
                     hiddenMessagesCache.cleanUp();
 
-                    writeQueue(queueUrl, messages);
-                    writeCache(queueUrl, hiddenMessagesCache);
                     return pullResult;
                 }
             }
@@ -113,10 +107,9 @@ public abstract class AbstractConcurrentCacheableQueueService implements QueueSe
     public void delete(String queueUrl, String receiptHandle) {
         lock.lock();
         try {
-            Cache<String, PullMessageResult> hiddenMessagesCache = readCache(queueUrl);
+            Cache<String, PullMessageResult> hiddenMessagesCache = hiddenMessagesByQueueUrl.get(queueUrl);
             if (hiddenMessagesCache != null) {
                 hiddenMessagesCache.invalidate(receiptHandle);
-                writeCache(queueUrl, hiddenMessagesCache);
             }
         } finally {
             lock.unlock();
@@ -143,7 +136,7 @@ public abstract class AbstractConcurrentCacheableQueueService implements QueueSe
     /**
      * Restores hidden message back to queue after the expiration of the message in the cache.
      */
-    private void restoreMessage(Message message, String queueUrl) {
+    protected void restoreMessage(Message message, String queueUrl) {
         lock.lock();
         try {
             BlockingDeque<Message> messages = readQueue(queueUrl);
