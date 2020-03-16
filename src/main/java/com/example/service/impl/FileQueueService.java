@@ -38,23 +38,10 @@ public class FileQueueService extends AbstractConcurrentCacheableQueueService {
     }
 
     @Override
-    protected void removeQueue(String queueUrl) {
-        File queueFile = getQueueFile(queueUrl);
-        queueFile.delete();
-    }
-
-    @Override
     protected void writeCache(String queueUrl, Cache<String, PullMessageResult> messageCache) {
         super.writeCache(queueUrl, messageCache);
         File cacheFile = getCacheBackupFile(queueUrl);
         FileUtils.writeData(cacheFile, new ConcurrentHashMap<>(messageCache.asMap()));
-    }
-
-    @Override
-    protected void removeCache(String queueUrl) {
-        super.removeCache(queueUrl);
-        File cacheFile = getCacheBackupFile(queueUrl);
-        cacheFile.delete();
     }
 
     private File getQueueFile(String queueUrl) {

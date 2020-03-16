@@ -1,6 +1,5 @@
 package com.example.service.impl;
 
-import com.example.model.CreateQueueResult;
 import com.example.model.Message;
 import com.example.model.PullMessageResult;
 import com.example.model.PushMessageResult;
@@ -34,44 +33,18 @@ public abstract class AbstractConcurrentCacheableQueueService implements QueueSe
 
     protected abstract void writeQueue(String queueUrl, BlockingDeque<Message> messageQueue);
 
-    protected abstract void removeQueue(String queueUrl);
-
-    @Override
-    public CreateQueueResult createNewQueue() {
-        lock.lock();
-        try {
-            String queueUrl = UUID.randomUUID().toString();
-            writeQueue(queueUrl, new LinkedBlockingDeque<>());
-            writeCache(queueUrl, buildMessageCache(queueUrl));
-            return new CreateQueueResult(queueUrl);
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    @Override
-    public void deleteQueue(String queueUrl) {
-        lock.lock();
-        try {
-            removeQueue(queueUrl);
-            removeCache(queueUrl);
-        } finally {
-            lock.unlock();
-        }
-    }
-
     @Override
     public PushMessageResult push(String queueUrl, String messageBody) {
         lock.lock();
         try {
-            BlockingDeque<Message> messages = readQueue(queueUrl);
-            if (messages != null) {
-                String messageId = UUID.randomUUID().toString();
-                messages.addLast(new Message(messageBody, messageId));
-                writeQueue(queueUrl, messages);
-                return new PushMessageResult(messageId);
+            BlockingDeque<Message> messageQueue = readQueue(queueUrl);
+            if (messageQueue == null) {
+                messageQueue = createQueue(queueUrl);
             }
-            return null;
+            String messageId = UUID.randomUUID().toString();
+            messageQueue.addLast(new Message(messageBody, messageId));
+            writeQueue(queueUrl, messageQueue);
+            return new PushMessageResult(messageId);
         } finally {
             lock.unlock();
         }
@@ -126,10 +99,6 @@ public abstract class AbstractConcurrentCacheableQueueService implements QueueSe
         hiddenMessagesByQueueUrl.put(queueUrl, messageCache);
     }
 
-    protected void removeCache(String queueUrl) {
-        hiddenMessagesByQueueUrl.remove(queueUrl);
-    }
-
     /**
      * Builds cache for hidden messages with specified visibility timeout, initial cache data
      * and listener that restore message after expiration.
@@ -171,5 +140,12 @@ public abstract class AbstractConcurrentCacheableQueueService implements QueueSe
         } finally {
             lock.unlock();
         }
+    }
+
+    private BlockingDeque<Message> createQueue(String queueUrl) {
+        BlockingDeque<Message> messageQueue = new LinkedBlockingDeque<>();
+        writeQueue(queueUrl, messageQueue);
+        writeCache(queueUrl, buildMessageCache(queueUrl));
+        return messageQueue;
     }
 }

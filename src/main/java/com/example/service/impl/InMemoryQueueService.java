@@ -24,9 +24,4 @@ public class InMemoryQueueService extends AbstractConcurrentCacheableQueueServic
     protected void writeQueue(String queueUrl, BlockingDeque<Message> messageQueue) {
         messagesByQueueUrl.put(queueUrl, messageQueue);
     }
-
-    @Override
-    protected void removeQueue(String queueUrl) {
-        messagesByQueueUrl.remove(queueUrl);
-    }
 }

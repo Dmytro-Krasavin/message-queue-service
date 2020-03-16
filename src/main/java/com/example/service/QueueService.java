@@ -1,24 +1,9 @@
 package com.example.service;
 
-import com.example.model.CreateQueueResult;
 import com.example.model.PullMessageResult;
 import com.example.model.PushMessageResult;
 
 public interface QueueService {
-
-    /**
-     * Creates a new queue.
-     *
-     * @return CreateQueueResult with generated queue URL
-     */
-    CreateQueueResult createNewQueue();
-
-    /**
-     * Deletes the queue specified by the queue URL if it is present.
-     *
-     * @param queueUrl The URL of the queue.
-     */
-    void deleteQueue(String queueUrl);
 
     /**
      * Pushes the specified message to the specified queue.

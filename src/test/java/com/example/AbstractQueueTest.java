@@ -1,6 +1,5 @@
 package com.example;
 
-import com.example.model.CreateQueueResult;
 import com.example.model.PullMessageResult;
 import com.example.model.PushMessageResult;
 import com.example.service.QueueService;
@@ -17,9 +16,8 @@ public abstract class AbstractQueueTest {
     @Test
     public void assertPushPullMessageInQueue() {
         QueueService queueService = initQueueService(Duration.ofMillis(3000));
-        CreateQueueResult createQueueResult = queueService.createNewQueue();
-        String queueUrl = createQueueResult.getQueueUrl();
 
+        String queueUrl = "test-queue-url";
         String messageBody = "Test message";
         PushMessageResult pushResult = queueService.push(queueUrl, messageBody);
         PullMessageResult pullResult = queueService.pull(queueUrl);
@@ -31,8 +29,7 @@ public abstract class AbstractQueueTest {
     @Test
     public void assertSuccessDeleteAfterPool() throws InterruptedException {
         QueueService queueService = initQueueService(Duration.ofMillis(10));
-        CreateQueueResult createQueueResult = queueService.createNewQueue();
-        String queueUrl = createQueueResult.getQueueUrl();
+        String queueUrl = "test-queue-url";
 
         queueService.push(queueUrl, "Test");
         PullMessageResult pullResult = queueService.pull(queueUrl);
@@ -45,8 +42,7 @@ public abstract class AbstractQueueTest {
     @Test
     public void assertMessageBecomeVisibleIfNoDelete() throws InterruptedException {
         QueueService queueService = initQueueService(Duration.ofMillis(1));
-        CreateQueueResult createQueueResult = queueService.createNewQueue();
-        String queueUrl = createQueueResult.getQueueUrl();
+        String queueUrl = "test-queue-url";
 
         String messageBody = "Test";
         queueService.push(queueUrl, messageBody);
@@ -59,8 +55,7 @@ public abstract class AbstractQueueTest {
     @Test
     public void assertRemoveFalseIfVisibilityTimeoutOver() throws InterruptedException {
         QueueService queueService = initQueueService(Duration.ofMillis(1));
-        CreateQueueResult createQueueResult = queueService.createNewQueue();
-        String queueUrl = createQueueResult.getQueueUrl();
+        String queueUrl = "test-queue-url";
 
         queueService.push(queueUrl, "Test");
         PullMessageResult pullResult = queueService.pull(queueUrl);
