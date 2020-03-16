@@ -4,6 +4,7 @@ import com.example.model.Message;
 import com.example.model.PullMessageResult;
 import com.example.util.FileUtils;
 import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 
 import java.io.File;
 import java.time.Duration;
@@ -15,7 +16,7 @@ import java.util.concurrent.ConcurrentMap;
 public class FileQueueService extends AbstractConcurrentCacheableQueueService {
 
     private static final String QUEUE_DIR_NAME = "queue";
-    private static final String CACHE_BACKUP_DIR_NAME = "cache-backup";
+    private static final String CACHE_DIR_NAME = "cache";
 
     private final String storagePath;
 
@@ -38,18 +39,27 @@ public class FileQueueService extends AbstractConcurrentCacheableQueueService {
     }
 
     @Override
+    protected Cache<String, PullMessageResult> readCache(String queueUrl) {
+        return restoreCache(queueUrl);
+    }
+
+    @Override
     protected void writeCache(String queueUrl, Cache<String, PullMessageResult> messageCache) {
-        super.writeCache(queueUrl, messageCache);
-        File cacheFile = getCacheBackupFile(queueUrl);
+        File cacheFile = getCacheFile(queueUrl);
         FileUtils.writeData(cacheFile, new ConcurrentHashMap<>(messageCache.asMap()));
+    }
+
+    @Override
+    protected Cache<String, PullMessageResult> buildCache(String queueUrl) {
+        return CacheBuilder.newBuilder().build();
     }
 
     private File getQueueFile(String queueUrl) {
         return new File(storagePath + File.separator + QUEUE_DIR_NAME + File.separator + queueUrl);
     }
 
-    private File getCacheBackupFile(String queueUrl) {
-        return new File(storagePath + File.separator + CACHE_BACKUP_DIR_NAME + File.separator + queueUrl);
+    private File getCacheFile(String queueUrl) {
+        return new File(storagePath + File.separator + CACHE_DIR_NAME + File.separator + queueUrl);
     }
 
     private void initializeStorage(String storagePath) {
@@ -57,33 +67,33 @@ public class FileQueueService extends AbstractConcurrentCacheableQueueService {
         if (!storageDir.exists() || !storageDir.isDirectory()) {
             createStorageDirectories(storageDir);
         } else if (storageDir.exists() && storageDir.isDirectory()) {
-            restoreCache();
+            restoreAllHiddenMessages();
         }
     }
 
     private void createStorageDirectories(File mainStorageDir) {
         mainStorageDir.mkdir();
         File queueDir = new File(storagePath + File.separator + QUEUE_DIR_NAME);
-        File cacheDir = new File(storagePath + File.separator + CACHE_BACKUP_DIR_NAME);
+        File cacheDir = new File(storagePath + File.separator + CACHE_DIR_NAME);
         queueDir.mkdir();
         cacheDir.mkdir();
     }
 
-    private void restoreCache() {
-        File cacheDir = new File(storagePath + File.separator + CACHE_BACKUP_DIR_NAME);
+    private void restoreAllHiddenMessages() {
+        File cacheDir = new File(storagePath + File.separator + CACHE_DIR_NAME);
         if (cacheDir.exists() && cacheDir.isDirectory()) {
             String[] queueUrls = cacheDir.list();
             if (queueUrls != null) {
                 for (String queueUrl : queueUrls) {
-                    restoreAllExpiredMessages(queueUrl);
+                    restoreCache(queueUrl);
                 }
             }
         }
     }
 
-    private void restoreAllExpiredMessages(String queueUrl) {
-        File cacheBackupFile = getCacheBackupFile(queueUrl);
-        ConcurrentMap<String, PullMessageResult> cacheData = FileUtils.readData(cacheBackupFile);
+    private Cache<String, PullMessageResult> restoreCache(String queueUrl) {
+        File cacheFile = getCacheFile(queueUrl);
+        ConcurrentMap<String, PullMessageResult> cacheData = FileUtils.readData(cacheFile);
         if (cacheData != null) {
             cacheData.values()
                     .parallelStream()
@@ -92,9 +102,12 @@ public class FileQueueService extends AbstractConcurrentCacheableQueueService {
                         restoreMessage(pullResult.getMessage(), queueUrl);
                         cacheData.remove(pullResult.getReceiptHandle());
                     });
-            Cache<String, PullMessageResult> hiddenMessageCache = buildMessageCache(queueUrl, cacheData);
+            Cache<String, PullMessageResult> hiddenMessageCache = buildCache(queueUrl);
+            hiddenMessageCache.putAll(cacheData);
             writeCache(queueUrl, hiddenMessageCache);
+            return hiddenMessageCache;
         }
+        return null;
     }
 
     private boolean isInvisibleTimeExpired(PullMessageResult pullMessageResult) {

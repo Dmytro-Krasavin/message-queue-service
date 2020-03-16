@@ -2,27 +2,21 @@ package com.example;
 
 import com.example.service.QueueService;
 import com.example.service.impl.FileQueueService;
+import com.example.util.FileUtils;
 import org.junit.After;
+import org.junit.Test;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
-import java.util.Comparator;
 
 public class FileQueueTest extends AbstractQueueTest {
 
     private static final String STORAGE_DIR = "test-storage/";
 
     @After
-    public void deleteTestDir() throws IOException {
+    public void deleteTestDir() {
         File directory = new File(STORAGE_DIR);
-        Files.walk(directory.toPath())
-                .sorted(Comparator.reverseOrder())
-                .map(Path::toFile)
-                .forEach(File::delete);
-        directory.delete();
+        FileUtils.deleteDirectory(directory);
     }
 
     @Override

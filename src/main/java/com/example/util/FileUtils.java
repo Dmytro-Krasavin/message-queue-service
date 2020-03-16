@@ -1,6 +1,9 @@
 package com.example.util;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
 
 public class FileUtils {
 
@@ -17,6 +20,18 @@ public class FileUtils {
         try (ObjectOutputStream objectOutput = new ObjectOutputStream(new FileOutputStream(file))) {
             objectOutput.writeObject(data);
             return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    public static boolean deleteDirectory(File directory) {
+        try {
+            Files.walk(directory.toPath())
+                    .sorted(Comparator.reverseOrder())
+                    .map(Path::toFile)
+                    .forEach(File::delete);
+            return directory.delete();
         } catch (IOException e) {
             return false;
         }
