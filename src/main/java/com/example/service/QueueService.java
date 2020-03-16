@@ -25,7 +25,8 @@ public interface QueueService {
      *
      * @param queueUrl    The URL of the queue.
      * @param messageBody The message to send.
-     * @return PushMessageResult with generated message ID.
+     * @return PushMessageResult with generated message ID
+     * or {@code null} if the queue with this url does not exists.
      */
     PushMessageResult push(String queueUrl, String messageBody);
 
@@ -36,7 +37,8 @@ public interface QueueService {
      * does not delete it, message automatically restores in queue after timeout expiration.
      *
      * @param queueUrl The URL of the queue.
-     * @return PullMessageResult with single message and generated receiptHandle that can be used for deleting.
+     * @return PullMessageResult with single message and generated receiptHandle that can be used for deleting
+     * or {@code null} if the queue with this url does not exists or it is empty.
      */
     PullMessageResult pull(String queueUrl);
 
