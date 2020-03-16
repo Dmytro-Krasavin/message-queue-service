@@ -98,6 +98,7 @@ public abstract class AbstractQueueTest {
         queueService.push(queueUrl, messageBody);
         PullMessageResult firstPull = queueService.pull(queueUrl);
         Thread.sleep(100);
+
         queueService.delete(queueUrl, firstPull.getReceiptHandle());
         PullMessageResult secondPull = queueService.pull(queueUrl);
 
