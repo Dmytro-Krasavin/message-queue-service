@@ -14,6 +14,17 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * This class provides a skeletal implementation of the {@code QueueService}
+ * interface, represents messages as {@code BlockingDeque}
+ * and hidden messages as {@code Cache}.
+ * To implement a service, the programmer should override methods
+ * for reading and writing this data structures.
+ * <p>
+ * The programmer should generally provide a constructor with {@code Duration} argument.
+ * <p>
+ * This class is supporting full concurrency of retrievals and updates.
+ */
 public abstract class AbstractConcurrentCacheableQueueService implements QueueService {
 
     protected final Duration visibilityTimeout;
@@ -94,7 +105,7 @@ public abstract class AbstractConcurrentCacheableQueueService implements QueueSe
     }
 
     /**
-     * Restores hidden message back to queue.
+     * Restores hidden message back to the queue.
      */
     protected void restoreMessage(Message message, String queueUrl) {
         lock.lock();

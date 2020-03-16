@@ -12,6 +12,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * This class is implementation of {@code QueueService}, based on storing state to a {@code ConcurrentHashMap}.
+ * Class is suitable for same-JVM producers and consumers.
+ */
 public class InMemoryQueueService extends AbstractConcurrentCacheableQueueService {
 
     private final ConcurrentMap<String, BlockingDeque<Message>> messagesByQueueUrl = new ConcurrentHashMap<>();

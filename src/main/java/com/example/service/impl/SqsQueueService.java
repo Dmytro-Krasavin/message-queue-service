@@ -10,6 +10,9 @@ import com.example.service.QueueService;
 
 import java.time.Instant;
 
+/**
+ * This class is implementation of {@code QueueService}, it is an adapter for a AmazonSQS.
+ */
 public class SqsQueueService implements QueueService {
 
     private final AmazonSQSClient sqsClient;

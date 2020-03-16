@@ -13,6 +13,10 @@ import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+/**
+ * This class is implementation of {@code QueueService}, based on storing state to a file.
+ * Class has persistence state and it is suitable for same-host producers and consumers.
+ */
 public class FileQueueService extends AbstractConcurrentCacheableQueueService {
 
     private static final String QUEUE_DIR_NAME = "queue";
