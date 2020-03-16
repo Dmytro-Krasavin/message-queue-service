@@ -13,21 +13,20 @@ import java.util.Comparator;
 
 public class FileQueueTest extends AbstractQueueTest {
 
-    private static final String STORAGE_PATH = "test/";
+    private static final String STORAGE_DIR = "test-storage/";
 
     @After
     public void deleteTestDir() throws IOException {
-        File directory = new File(STORAGE_PATH);
+        File directory = new File(STORAGE_DIR);
         Files.walk(directory.toPath())
                 .sorted(Comparator.reverseOrder())
                 .map(Path::toFile)
                 .forEach(File::delete);
-        boolean delete = directory.delete();
-        System.out.println(delete);
+        directory.delete();
     }
 
     @Override
     protected QueueService initQueueService(Duration visibilityTimeout) {
-        return new FileQueueService(visibilityTimeout, STORAGE_PATH);
+        return new FileQueueService(visibilityTimeout, STORAGE_DIR);
     }
 }

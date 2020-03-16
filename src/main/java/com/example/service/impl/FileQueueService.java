@@ -2,9 +2,10 @@ package com.example.service.impl;
 
 import com.example.model.Message;
 import com.example.model.PullMessageResult;
+import com.example.util.FileUtils;
 import com.google.common.cache.Cache;
 
-import java.io.*;
+import java.io.File;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.BlockingDeque;
@@ -14,7 +15,7 @@ import java.util.concurrent.ConcurrentMap;
 public class FileQueueService extends AbstractConcurrentCacheableQueueService {
 
     private static final String QUEUE_DIR_NAME = "queue";
-    private static final String CACHE_BACKUP_DIR_NAME = "cache_backup";
+    private static final String CACHE_BACKUP_DIR_NAME = "cache-backup";
 
     private final String storagePath;
 
@@ -25,74 +26,35 @@ public class FileQueueService extends AbstractConcurrentCacheableQueueService {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected BlockingDeque<Message> readQueue(String queueUrl) {
         File queueFile = getQueueFile(queueUrl);
-        try (FileInputStream fileInputStream = new FileInputStream(queueFile);
-             ObjectInputStream objectInputStream = new ObjectInputStream(fileInputStream)) {
-            return (BlockingDeque<Message>) objectInputStream.readObject();
-        } catch (IOException | ClassNotFoundException e) {
-            return null;
-        }
+        return FileUtils.readData(queueFile);
     }
 
     @Override
     protected void writeQueue(String queueUrl, BlockingDeque<Message> messageQueue) {
         File queueFile = getQueueFile(queueUrl);
-        try (FileOutputStream fileOutputStream = new FileOutputStream(queueFile);
-             ObjectOutputStream objectOutputStream = new ObjectOutputStream(fileOutputStream)) {
-            objectOutputStream.writeObject(messageQueue);
-        } catch (IOException e) {
-        }
+        FileUtils.writeData(queueFile, messageQueue);
     }
 
     @Override
     protected void removeQueue(String queueUrl) {
         File queueFile = getQueueFile(queueUrl);
-        if (queueFile.exists()) {
-            queueFile.delete();
-        }
+        queueFile.delete();
     }
 
-    @SuppressWarnings("unchecked")
-    protected Cache<String, PullMessageResult> readCache(String queueUrl) {
-        File cacheFile = getCacheBackupFile(queueUrl);
-        try (FileInputStream fileInputStream = new FileInputStream(cacheFile);
-             ObjectInputStream objectInputStream = new ObjectInputStream(fileInputStream)) {
-
-            ConcurrentMap<String, PullMessageResult> initialCacheData = (ConcurrentMap<String, PullMessageResult>) objectInputStream.readObject();
-            if (initialCacheData != null) {
-                Cache<String, PullMessageResult> messageCache = super.buildMessageCache(queueUrl);
-                messageCache.putAll(initialCacheData);
-                return messageCache;
-            }
-            return null;
-        } catch (IOException | ClassNotFoundException e) {
-            return null;
-        }
-    }
-
+    @Override
     protected void writeCache(String queueUrl, Cache<String, PullMessageResult> messageCache) {
+        super.writeCache(queueUrl, messageCache);
         File cacheFile = getCacheBackupFile(queueUrl);
-        try (FileOutputStream fileOutputStream = new FileOutputStream(cacheFile);
-             ObjectOutputStream objectOutputStream = new ObjectOutputStream(fileOutputStream)) {
-            ConcurrentMap<String, PullMessageResult> cacheData = new ConcurrentHashMap<>(messageCache.asMap());
-            objectOutputStream.writeObject(cacheData);
-        } catch (IOException e) {
-        }
+        FileUtils.writeData(cacheFile, new ConcurrentHashMap<>(messageCache.asMap()));
     }
 
-    public static void main(String[] args) {
-        FileQueueService queueService = new FileQueueService(Duration.ofMillis(1), "test/");
-        String queueUrl = "8dab0607-d7bf-4cef-91db-ce4582a90e01";
-//        BlockingDeque<Message> messages = queueService.readQueue(queueUrl);
-//        messages.addFirst(new Message("message-2", "2"));
-//        queueService.writeQueue(queueUrl, messages);
-//        System.out.println(messages.toString());
-
-//        queueService.writeCache(queueUrl, queueService.buildMessageCache(queueUrl));
-//        Cache<String, PullMessageResult> cache = queueService.readCache(queueUrl);
-//        System.out.println(cache);
+    @Override
+    protected void removeCache(String queueUrl) {
+        super.removeCache(queueUrl);
+        File cacheFile = getCacheBackupFile(queueUrl);
+        cacheFile.delete();
     }
 
     private File getQueueFile(String queueUrl) {
@@ -104,37 +66,47 @@ public class FileQueueService extends AbstractConcurrentCacheableQueueService {
     }
 
     private void initializeStorage(String storagePath) {
-        File mainStorageDir = new File(storagePath);
-        if (mainStorageDir.exists() && mainStorageDir.isDirectory()) {
-
-            File cacheDir = new File(storagePath + File.separator + CACHE_BACKUP_DIR_NAME);
-            if (cacheDir.exists() && cacheDir.isDirectory()) {
-                String[] fileNames = cacheDir.list();
-                if (fileNames != null) {
-                    for (String fileName : fileNames) {
-                        restoreAllExpiredMessage(fileName);
-                    }
-                }
-            }
-        } else if (!mainStorageDir.exists() || !mainStorageDir.isDirectory()) {
-            mainStorageDir.mkdir();
-            File queueDir = new File(storagePath + File.separator + QUEUE_DIR_NAME);
-            File cacheDir = new File(storagePath + File.separator + CACHE_BACKUP_DIR_NAME);
-            queueDir.mkdir();
-            cacheDir.mkdir();
+        File storageDir = new File(storagePath);
+        if (!storageDir.exists() || !storageDir.isDirectory()) {
+            createStorageDirectories(storageDir);
+        } else if (storageDir.exists() && storageDir.isDirectory()) {
+            restoreCache();
         }
     }
 
-    private void restoreAllExpiredMessage(String queueUrl) {
-        Cache<String, PullMessageResult> hiddenMessageCache = readCache(queueUrl);
-        if (hiddenMessageCache != null) {
-            hiddenMessageCache.asMap().values()
+    private void createStorageDirectories(File mainStorageDir) {
+        mainStorageDir.mkdir();
+        File queueDir = new File(storagePath + File.separator + QUEUE_DIR_NAME);
+        File cacheDir = new File(storagePath + File.separator + CACHE_BACKUP_DIR_NAME);
+        queueDir.mkdir();
+        cacheDir.mkdir();
+    }
+
+    private void restoreCache() {
+        File cacheDir = new File(storagePath + File.separator + CACHE_BACKUP_DIR_NAME);
+        if (cacheDir.exists() && cacheDir.isDirectory()) {
+            String[] queueUrls = cacheDir.list();
+            if (queueUrls != null) {
+                for (String queueUrl : queueUrls) {
+                    restoreAllExpiredMessages(queueUrl);
+                }
+            }
+        }
+    }
+
+    private void restoreAllExpiredMessages(String queueUrl) {
+        File cacheBackupFile = getCacheBackupFile(queueUrl);
+        ConcurrentMap<String, PullMessageResult> cacheData = FileUtils.readData(cacheBackupFile);
+        if (cacheData != null) {
+            cacheData.values()
                     .parallelStream()
                     .filter(this::isInvisibleTimeExpired)
                     .forEach(pullResult -> {
                         restoreMessage(pullResult.getMessage(), queueUrl);
-                        hiddenMessageCache.invalidate(pullResult.getReceiptHandle());
+                        cacheData.remove(pullResult.getReceiptHandle());
                     });
+            Cache<String, PullMessageResult> hiddenMessageCache = buildMessageCache(queueUrl, cacheData);
+            writeCache(queueUrl, hiddenMessageCache);
         }
     }
 
