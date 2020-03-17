@@ -6,6 +6,8 @@ import java.util.Objects;
 
 public class PullMessageResult implements Serializable {
 
+    private static final long serialVersionUID = 1L;
+
     private final Message message;
     private final String receiptHandle;
     private final Instant receiptDate;
