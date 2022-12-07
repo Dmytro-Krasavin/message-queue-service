@@ -58,7 +58,7 @@ Scope
 between producers and consumers in different JVMs (i.e. thread-safe in 
 a single VM, but also inter-process safe when used concurrently in multiple VMs).
 
-4. SQS-based version of the interface.
+4. SQS-based version of the interface, that is decorating the SQS client for more comportable usage.
 
 
 Building and Running
